@@ -1,0 +1,85 @@
+ffmpeg -i tawa.mkv -strict -1 -pix_fmt yuv420p10le -f yuv4mpegpipe - |
+  ./SvtAv1EncApp -i stdin -b stdout -w 3840 -h 2160 --fps 24 --rc 0 --enable-tpl-la 0 --qp 25 --keyint 240 --irefresh-type 1 --preset 4 --profile 3 --input-depth 10 | ffmpeg -y -i - -c copy -an tawa.webm
+SvtAv1EncApp -i snip.yuv -b stdout -w 1920 -h 1080 --fps 24 --rc 0 --qp 25 --preset 10 | ffmpeg -y -i - -c copy -an snip_svt_faster.webm
+
+// working nvm overblown on actual hdr screen
+./ffmpeg -i short_sollevante.mov -pix_fmt yuv444p12le -c:v libsvtav1 -preset 6 -tile_columns 0 -tile_rows 0 -tier high -color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc -qp 28 -rc 0 -an short_sollevante_28_av1
+
+./ffmpeg -i short_yourname.mkv -pix_fmt yuv420p10le -c:v libsvtav1 -preset 6 -tile_columns 0 -tile_rows 0 -tier high -color_primaries bt2020 -color_trc arib-std-b67 -colorspace bt2020nc -qp 20 -rc 0 -an short_yourname_20_av1_hdr.webm
+
+./ffmpeg -i short_sollevante.mov -c:v libaom-av1 -pix_fmt yuv420p10le -strict experimental -cpu-used 4 -tile-rows 0 -tile-columns 0 -color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc -row-mt 1 -b:v 0 -crf 25 -an short_sollevante_28_av1_hdr.webm
+
+
+ffmpeg -i danmachi1.mkv -c:v libvpx-vp9 -cpu-used 2 -crf 35 -b:v 0 -row-mt 1 -an danmachi1_vp9_35_noaudio.mkv
+
+// actually working
+./ffmpeg -i short_sollevante.mov -pix_fmt yuv420p10le -color_primaries 9 -color_trc 16 -colorspace 9 -color_range 1 -b:v 0 -crf 25 -profile:v 2 -row-mt 1 -cpu-used 2 -vcodec libvpx-vp9 -an short_sollevante_25_vp9.webm
+
+./ffmpeg -i short_veg.mkv -pix_fmt yuv420p10le -color_primaries 9 -color_trc 16 -colorspace 9 -color_range 1 -b:v 0 -crf 20 -profile:v 2 -row-mt 1 -cpu-used 2 -vcodec libvpx-vp9 -an short_veg_20_vp9.webm
+
+./ffmpeg \
+    -r 24 -i short_your-name.mkv \
+    -r 24 -i short_your-name_vp9.webm \
+    -lavfi "[0:v]setpts=PTS-STARTPTS[reference]; \
+            [1:v]setpts=PTS-STARTPTS[distorted]; \
+            [distorted][reference]libvmaf=log_fmt=xml:log_path=/local/tmp/hongbenj/short_your-name_vp9.xml:model='path=/local/tmp/hongbenj/vmaf_v0.6.1.json'" \
+    -f null -
+
+G(8500,39850)B(6550,2300)R(35400,14600)WP(15635,16450)L(100000000, 0)
+
+hdr-opt=1:repeat-headers=1:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:master-display=G(8500,39850)B(6550,2300)R(35400,14600)WP(15635,16450)L(100000000,0):max-cll=4996,297
+
+
+
+
+mkvmerge `
+      -o short_yourname_vp9_15_0_hdr.webm `
+      --colour-matrix 0:9 `
+      --colour-range 0:1 `
+      --colour-transfer-characteristics 0:16 `
+      --colour-primaries 0:9 `
+      --max-content-light 0:1000 `
+      --max-frame-light 0:300 `
+      --max-luminance 0:1000 `
+      --min-luminance 0:0.01 `
+      --chromaticity-coordinates 0:0.68,0.32,0.265,0.690,0.15,0.06 `
+      --white-colour-coordinates 0:0.3127,0.3290 `
+      short_yourname_vp9_15_0.webm 
+
+
+./mkvmerge `
+      -o short_yourname_vp9_15_0_hdr.webm `
+      --colour-matrix 0:9 `
+      --colour-range 0:1 `
+      --colour-transfer-characteristics 0:16 `
+      --colour-primaries 0:9 `
+      --max-content-light 0:4996 `
+      --max-frame-light 0:297 `
+      --max-luminance 0:1000 `
+      --min-luminance 0:0.005 `
+      --chromaticity-coordinates 0:0.708,0.292,0.17,0.797,0.131,0.046 `
+      --white-colour-coordinates 0:0.3127,0.3290 `
+      short_yourname_vp9_15_0.webm 
+
+./mkvmerge `
+      -o short_veg_vp9_15_0_hdr.webm `
+      --colour-matrix 0:9 `
+      --colour-range 0:1 `
+      --colour-transfer-characteristics 0:16 `
+      --colour-primaries 0:9 `
+      --max-content-light 0:4996 `
+      --max-frame-light 0:297 `
+      --max-luminance 0:1000 `
+      --min-luminance 0:0.0001 `
+      --chromaticity-coordinates 0:0.708,0.292,0.17,0.797,0.131,0.046 `
+      --white-colour-coordinates 0:0.3127,0.329 `
+      short_veg_20_vp9_video.webm 
+
+
+ffmpeg -i tawa.mkv -strict -1 -pix_fmt yuv420p10le -f yuv4mpegpipe - | vpxenc stdin -o output_vp9.webm \
+  --codec=vp9 --i420 -w 1920 -h 1080 -p 2 -t 4 \
+  --good --cpu-used=2 --cq-level=25 --end-usage=cq \
+  --auto-alt-ref=1 --row-mt=1 --fps=24 -v \
+  --minsection-pct=5 --maxsection-pct=800 \
+  --lag-in-frames=16 --kf-min-dist=0 --kf-max-dist=360 \
+  --token-parts=2 --static-thresh=0
