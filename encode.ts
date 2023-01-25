@@ -1,5 +1,5 @@
 import { getSegment, removeSegment } from "./segments.ts"
-import { fileExistsSync, fileExists, crfs } from "./utils.ts"
+import { fileExistsSync, fileExists, crfs, range } from "./utils.ts"
 import { verifyScene } from "./video.ts"
 import scene_pos from "./scenes.json" assert { type: "json" }
 
@@ -11,7 +11,7 @@ async function encodeSegmentCrf(key: number, crf: number, segmentBuffer: Uint8Ar
 
     const pSvt = Deno.run({
         cmd: [
-            "SvtAv1EncApp",
+            "./SvtAv1EncApp",
             "-i",
             `-`,
             "-b",
@@ -101,7 +101,7 @@ async function encodeSegmentCrf(key: number, crf: number, segmentBuffer: Uint8Ar
 async function encodeSegments(startFrame: number, endFrame: number, encodingCrfs: number[] = [...crfs]) {
     console.log(`Extracting segment ${startFrame} to ${endFrame}`)
 
-    const segment = await getSegment("/Users/benja/Downloads/vid_comp/video.mp4", startFrame, endFrame)
+    const segment = await getSegment("video.mp4", startFrame, endFrame)
 
     console.log(`Encoding segment ${startFrame} to ${endFrame}`)
 
@@ -111,7 +111,7 @@ async function encodeSegments(startFrame: number, endFrame: number, encodingCrfs
         // ignore
     }
 
-    const encodingPromises = [1].map(async () => {
+    const encodingPromises = range(0, 34).map(async () => {
         while (encodingCrfs.length > 0) {
             const crf = encodingCrfs.shift()
 
@@ -127,7 +127,7 @@ async function encodeSegments(startFrame: number, endFrame: number, encodingCrfs
 
     console.log(`Encoding segment ${startFrame} to ${endFrame} complete`)
 
-    removeSegment("/Users/benja/Downloads/vid_comp/video.mp4", startFrame)
+    removeSegment("video.mp4", startFrame)
 }
 
 const scenes: number[][] = []

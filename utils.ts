@@ -16,6 +16,10 @@ export async function fileExists(path: string) {
     }
 }
 
-// export const crfs = [...Array(63).keys()].map(a => a + 1)
+export function range(start: number, end: number) {
+    return [...Array(end - start).keys()].map(a => a + start)
+}
 
-export const crfs = [21]
+export const crfs = range(1, 64)
+
+// export const crfs = [21]
