@@ -300,7 +300,7 @@ type Listener<Args extends unknown[]> = Args extends [infer This, ...infer A]
 type Pop<T extends unknown[]> = T extends [unknown, ...infer B] ? B : T;
 
 // @ts-expect-error `this` is correct
-export interface Decoder {
+export interface Decoder extends Transform {
 	on<K extends keyof DecoderEvents>(event: K, listener: Listener<DecoderEvents[K]>): this;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	on(event: string | symbol, listener: (...args: any[]) => void): this;
