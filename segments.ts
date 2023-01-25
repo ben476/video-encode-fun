@@ -40,6 +40,9 @@ export async function initialiseVideo(video: string) {
         // streams[video] = stream
         iterators[video] = stream[Symbol.asyncIterator]()
         frameNumbers[video] = 0
+
+        console.log(`Initialised video ${video} with header`)
+        console.log("YUV4MPEG2", header.toString())
     }
 }
 
@@ -88,13 +91,24 @@ export async function getSegment(video: string, startFrame: number, endFrame: nu
 
     encoder.end()
 
-    let buffer = new Uint8Array(0)
+    let bufferSize = 0
+
+    bufferSize += "YUV4MPEG2 ".length
+    bufferSize += header.toString().length + 1
+
+    for (const frame of frames) {
+        bufferSize += "FRAME".length
+        bufferSize += frame.rawParameters?.length || 0 + 1
+        bufferSize += header.colourSpace.frameSize
+    }
+
+    const buffer = new Uint8Array(bufferSize)
+
+    let offset = 0
 
     for await (const chunk of encoder) {
-        const newBuffer = new Uint8Array(buffer.length + chunk.length)
-        newBuffer.set(buffer)
-        newBuffer.set(chunk, buffer.length)
-        buffer = newBuffer
+        buffer.set(chunk, offset)
+        offset += chunk.length
     }
 
     segments[video] ||= {}
