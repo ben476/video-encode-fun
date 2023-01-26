@@ -1,4 +1,3 @@
-import { getSegment, removeSegment } from "./segments.ts"
 import { fileExists, crfs, range } from "./utils.ts"
 
 export async function encodeSegmentCrf(key: number, crf: number, segmentBuffer: Uint8Array) {
@@ -96,10 +95,8 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentBuffer: 
     console.log(`Encoding segment ${key} with crf ${crf} successful`)
 }
 
-export async function encodeSegments(video: string, startFrame: number, endFrame: number, encodingCrfs: number[] = [...crfs]) {
+export async function encodeSegments(segmentBuffer: Uint8Array, startFrame: number, endFrame: number, encodingCrfs: number[] = [...crfs]) {
     console.log(`Extracting segment ${startFrame} to ${endFrame}`)
-
-    const segment = await getSegment(video, startFrame, endFrame)
 
     console.log(`Encoding segment ${startFrame} to ${endFrame}`)
 
@@ -117,7 +114,7 @@ export async function encodeSegments(video: string, startFrame: number, endFrame
                 break
             }
 
-            await encodeSegmentCrf(startFrame, crf, segment)
+            await encodeSegmentCrf(startFrame, crf, segmentBuffer)
         }
     })
 
@@ -125,5 +122,5 @@ export async function encodeSegments(video: string, startFrame: number, endFrame
 
     console.log(`Encoding segment ${startFrame} to ${endFrame} complete`)
 
-    removeSegment(video, startFrame)
+    // removeSegment(video, startFrame)
 }

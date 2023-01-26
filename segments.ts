@@ -1,6 +1,7 @@
 import { Decoder, Encoder, Frame, Header } from './y4m.ts';
 import { Readable } from "https://deno.land/std@0.173.0/node/stream.ts"
 import { once } from "https://deno.land/std@0.173.0/node/events.ts"
+import * as Comlink from "https://unpkg.com/comlink/dist/esm/comlink.mjs";
 
 function getY4MStream(path: string) {
     const p = Deno.run({
@@ -24,118 +25,144 @@ function getY4MStream(path: string) {
     return videoStream.pipe(new Decoder())
 }
 
-const headers: Record<string, Header> = {}
-// const streams: Record<string, Decoder> = {}
-const segments: Record<string, Record<number, Uint8Array>> = {}
-const iterators: Record<string, AsyncIterableIterator<Frame>> = {}
-const frameNumbers: Record<string, number> = {}
+export class SegmentLoader {
+    frameNumber = 0
+    segments: Record<number, Promise<Uint8Array>> = {}
+    lockQueue: ((value: void | PromiseLike<void>) => void)[] = []
+    iterator?: AsyncIterableIterator<Frame>
+    header?: Header
+    path: string
 
-export async function initialiseVideo(video: string) {
-    if (headers[video] === undefined) {
-        const stream = getY4MStream(video)
+    constructor(path: string) {
+        this.path = path
+    }
+
+    async initialise() {
+        if (this.iterator && this.header) return
+
+        const stream = getY4MStream(this.path)
 
         const [header] = await once(stream, 'header')
 
-        headers[video] = header
+        this.header = header
         // streams[video] = stream
-        iterators[video] = stream[Symbol.asyncIterator]()
-        frameNumbers[video] = 0
-
-        // console.log(`Initialised video ${video} with header`)
-        // console.log("YUV4MPEG2", header.toString())
-    }
-}
-
-export async function getSegment(video: string, startFrame: number, endFrame: number): Promise<Uint8Array> {
-    console.log(`Getting segment ${startFrame} to ${endFrame} for ${video}`)
-    if (segments[video]?.[startFrame]) return segments[video][startFrame]
-
-    // console.log(`Seeking to frame ${startFrame} for ${video}`)
-
-    await initialiseVideo(video)
-
-    if (startFrame < frameNumbers[video]) {
-        throw new Error('Can only seek forward')
+        this.iterator = stream[Symbol.asyncIterator]()
     }
 
-    const iterator = iterators[video]
+    async getSegment(startFrame: number, endFrame: number): Promise<Uint8Array> {
+        const segments = this.segments
 
-    console.log("Seeking to frame", startFrame, "from", frameNumbers[video])
-    while (frameNumbers[video] < startFrame) {
-        const { done } = await iterator.next()
-        if (done) {
-            throw new Error('Unexpected end of stream')
+        segments[startFrame] ||= this.loadSegment(startFrame, endFrame)
+
+        return await segments[startFrame]
+    }
+
+    async loadSegment(startFrame: number, endFrame: number): Promise<Uint8Array> {
+        console.log(`Getting segment ${startFrame} to ${endFrame} for ${this.path}`)
+
+        const { iterator, header } = this
+
+        // await this.initialise()
+
+        if (!header || !iterator) {
+            throw new Error('Video not initialised')
         }
-        frameNumbers[video]++
-    }
 
-    const frames = []
+        // get lock
+        const lock = new Promise<void>(resolve => {
+            this.lockQueue.push(resolve)
+        })
 
-    for (let i = startFrame; i < endFrame; i++) {
-        const { value, done } = await iterator.next()
-        if (done) {
-            throw new Error('Unexpected end of stream')
+        if (this.lockQueue.length > 1) {
+            await lock
         }
-        frames.push(value)
-    }
 
-    frameNumbers[video] = endFrame
-
-    const header = headers[video]
-
-    const encoder = new Encoder({ header })
-
-    for (const frame of frames) {
-        encoder.write(frame)
-    }
-
-    encoder.end()
-
-    let bufferSize = 0
-
-    bufferSize += "YUV4MPEG2 ".length
-    bufferSize += header.toString().length + 1
-
-    for (const frame of frames) {
-        bufferSize += "FRAME".length
-        bufferSize += frame.rawParameters?.length || 0 + 1
-        bufferSize += header.colourSpace.frameSize
-    }
-
-    const buffer = new Uint8Array(bufferSize)
-
-    let offset = 0
-
-    const textEncoder = new TextEncoder()
-
-    function appendToBuffer(data: string | ArrayBuffer) {
-        if (typeof data === "string") {
-            data = textEncoder.encode(data)
+        const releaseLock = () => {
+            this.lockQueue.shift()
+            this.lockQueue[0]?.()
         }
-        buffer.set(new Uint8Array(data), offset)
-        offset += data.byteLength
-    }
 
-    appendToBuffer("YUV4MPEG2 ")
-    appendToBuffer(header.toString())
-    appendToBuffer("\n")
+        console.log(`Seeking to frame ${startFrame} from ${this.frameNumber}`)
 
-    for (const frame of frames) {
-        appendToBuffer("FRAME")
-        appendToBuffer(frame.rawParameters || "")
+        if (startFrame < this.frameNumber) {
+            throw new Error('Can only seek forward')
+        }
+
+        while (this.frameNumber < startFrame) {
+            const { done } = await iterator.next()
+            if (done) {
+                throw new Error('Unexpected end of stream')
+            }
+            this.frameNumber++
+        }
+
+        const frames = []
+
+        for (let i = startFrame; i < endFrame; i++) {
+            const { value, done } = await iterator.next()
+            if (done) {
+                throw new Error('Unexpected end of stream')
+            }
+            frames.push(value)
+        }
+
+        this.frameNumber = endFrame
+
+        const encoder = new Encoder({ header })
+
+        for (const frame of frames) {
+            encoder.write(frame)
+        }
+
+        encoder.end()
+
+        let bufferSize = 0
+
+        bufferSize += "YUV4MPEG2 ".length
+        bufferSize += header.toString().length + 1
+
+        for (const frame of frames) {
+            bufferSize += "FRAME".length
+            bufferSize += frame.rawParameters?.length || 0 + 1
+            bufferSize += header.colourSpace.frameSize
+        }
+
+        const buffer = new Uint8Array(bufferSize)
+
+        let offset = 0
+
+        const textEncoder = new TextEncoder()
+
+        function appendToBuffer(data: string | ArrayBuffer) {
+            if (typeof data === "string") {
+                data = textEncoder.encode(data)
+            }
+            buffer.set(new Uint8Array(data), offset)
+            offset += data.byteLength
+        }
+
+        appendToBuffer("YUV4MPEG2 ")
+        appendToBuffer(header.toString())
         appendToBuffer("\n")
-        appendToBuffer(frame.data)
+
+        for (const frame of frames) {
+            appendToBuffer("FRAME")
+            appendToBuffer(frame.rawParameters || "")
+            appendToBuffer("\n")
+            appendToBuffer(frame.data)
+        }
+
+        // await Deno.writeFile(`segments/${startFrame}.y4m`, buffer)
+
+        releaseLock()
+
+        return buffer
     }
 
-    segments[video] ||= {}
-    segments[video][startFrame] = buffer
-
-    // await Deno.writeFile(`segments/${startFrame}.y4m`, buffer)
-
-    return buffer
+    removeSegment(startFrame: number) {
+        console.log(`Removing segment ${startFrame} for ${this.path}`)
+        delete this.segments[startFrame]
+    }
 }
 
-export function removeSegment(video: string, startFrame: number) {
-    console.log(`Removing segment ${startFrame} for ${video}`)
-    delete segments[video][startFrame]
-}
+Comlink.expose(SegmentLoader)
