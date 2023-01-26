@@ -8,11 +8,11 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentBuffer: 
 
     const pSvt = Deno.run({
         cmd: [
-            "SvtAv1EncApp",
+            "./SvtAv1EncApp",
             "-i",
             `-`,
             "-b",
-            `-`,
+            `/dev/stdout`,
             "-w",
             "1920",
             "-h",
@@ -30,10 +30,10 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentBuffer: 
         ],
         stdout: "piped",
         stdin: "piped",
-        // stderr: "piped",
+        stderr: "piped",
     })
 
-    console.log("Piping segment to svt, size:", segmentBuffer.length)
+    // console.log("Piping segment to svt, size:", segmentBuffer.length)
 
     let position = 0;
 
@@ -44,11 +44,11 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentBuffer: 
         pull(controller) {
             if (position < segmentBuffer.length) {
                 // console.log("Piping segment to svt, position:", position)
-                const chunk = segmentBuffer.slice(position, position + 100000)
-                position += 100000
+                const chunk = segmentBuffer.slice(position, position + 100000000)
+                position += 100000000
                 controller.enqueue(chunk)
             } else {
-                console.log("Done piping segment to svt", position, segmentBuffer.length)
+                // console.log("Done piping segment to svt", position, segmentBuffer.length)
                 controller.close()
             }
         }
@@ -76,7 +76,7 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentBuffer: 
         ],
         stdin: "piped",
         stdout: "piped",
-        // stderr: "piped",
+        stderr: "piped",
     })
 
     pSvt.stdout.readable.pipeTo(pFfmpeg.stdin.writable)
@@ -96,7 +96,7 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentBuffer: 
 }
 
 export async function encodeSegments(segmentBuffer: Uint8Array, startFrame: number, endFrame: number, encodingCrfs: number[] = [...crfs]) {
-    console.log(`Extracting segment ${startFrame} to ${endFrame}`)
+    // console.log(`Extracting segment ${startFrame} to ${endFrame}`)
 
     console.log(`Encoding segment ${startFrame} to ${endFrame}`)
 
@@ -106,7 +106,7 @@ export async function encodeSegments(segmentBuffer: Uint8Array, startFrame: numb
         // ignore
     }
 
-    const encodingPromises = range(0, 3).map(async () => {
+    const encodingPromises = range(0, 64).map(async () => {
         while (encodingCrfs.length > 0) {
             const crf = encodingCrfs.shift()
 

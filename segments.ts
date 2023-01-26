@@ -96,6 +96,8 @@ export class SegmentLoader {
             this.frameNumber++
         }
 
+        console.log(`Decoding segment ${startFrame} to ${endFrame} for ${this.path}`)
+
         const frames = []
 
         for (let i = startFrame; i < endFrame; i++) {
@@ -108,13 +110,7 @@ export class SegmentLoader {
 
         this.frameNumber = endFrame
 
-        const encoder = new Encoder({ header })
-
-        for (const frame of frames) {
-            encoder.write(frame)
-        }
-
-        encoder.end()
+        console.log(`Reconstructing segment ${startFrame} to ${endFrame} for ${this.path}`)
 
         let bufferSize = 0
 
@@ -153,6 +149,8 @@ export class SegmentLoader {
         }
 
         // await Deno.writeFile(`segments/${startFrame}.y4m`, buffer)
+
+        console.log(`Loaded segment ${startFrame} to ${endFrame} for ${this.path}`)
 
         releaseLock()
 
