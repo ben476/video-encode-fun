@@ -1,6 +1,6 @@
 import { fileExists, crfs, range } from "./utils.ts"
 
-export async function encodeSegmentCrf(key: number, crf: number, segmentPath: string) {
+export async function encodeSegmentCrf(key: number, crf: number, segmentPath: string, retries: number = 0) {
     if (await fileExists(`encodes/${key}/${crf}.webm`)) {
         console.log(`Skipping encoding ${key} with crf ${crf} because file already exists`)
         return
@@ -8,7 +8,7 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentPath: st
 
     const pSvt = Deno.run({
         cmd: [
-            "SvtAv1EncApp",
+            "./SvtAv1EncApp",
             "-i",
             segmentPath,
             "-b",
@@ -20,7 +20,7 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentPath: st
             "--fps",
             "23.98",
             "--lp",
-            "8",
+            retries ? "32" : "4",
             "--rc",
             "0",
             "--qp",
@@ -30,7 +30,7 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentPath: st
         ],
         stdout: "piped",
         stdin: "piped",
-        stderr: "piped",
+        // stderr: "piped",
     })
 
     // ffmpeg -y -i - -c copy -an out.webm
@@ -47,7 +47,7 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentPath: st
         ],
         stdin: "piped",
         stdout: "piped",
-        stderr: "piped",
+        // stderr: "piped",
     })
 
     pSvt.stdout.readable.pipeTo(pFfmpeg.stdin.writable)
@@ -57,10 +57,14 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentPath: st
     if (code !== 0) {
         console.log(`Encoding segment ${key} with crf ${crf} failed`)
 
-        console.log(new TextDecoder().decode(await pSvt.stderrOutput()))
-        console.log(new TextDecoder().decode(await pFfmpeg.stderrOutput()))
+        // console.log(new TextDecoder().decode(await pSvt.stderrOutput()))
+        // console.log(new TextDecoder().decode(await pFfmpeg.stderrOutput()))
 
-        return
+        if (retries > 1) {
+            return
+        }
+
+        return encodeSegmentCrf(key, crf, segmentPath, retries + 1)
     }
 
     console.log(`Encoding segment ${key} with crf ${crf} successful`)

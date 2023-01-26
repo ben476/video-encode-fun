@@ -17,7 +17,7 @@ function getY4MStream(path: string) {
             "-"
         ],
         stdout: "piped",
-        stderr: "piped",
+        // stderr: "piped",
     })
 
     const videoStream = Readable.fromWeb(p.stdout.readable)
@@ -100,6 +100,9 @@ export class SegmentLoader {
                 throw new Error('Unexpected end of stream')
             }
             this.frameNumber++
+            if (this.frameNumber % 100 === 0) {
+                console.log('Frame', this.frameNumber)
+            }
         }
 
         console.log(`Decoding segment ${startFrame} to ${endFrame} for ${this.path}`)
