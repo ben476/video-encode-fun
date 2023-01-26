@@ -37,17 +37,24 @@ if (lastCompleted) {
 const segmentsToEncode = scenes.filter(scene => completed.indexOf(scene) === -1)
 
 const ComlinkSegmentLoader = wrap(new Worker(new URL("./segments.ts", import.meta.url).href, { type: "module" }))
-const segmentLoader = await new ComlinkSegmentLoader("video.mp4") as SegmentLoader // OK to cast since all methods are already async
+const segmentLoader = await new ComlinkSegmentLoader("/Users/benja/Downloads/vid_comp/video.mp4") as SegmentLoader // OK to cast since all methods are already async
 
 await segmentLoader.initialise()
 
 segmentLoader.getSegment(segmentsToEncode[0][0], segmentsToEncode[0][1])
 
+try {
+    await Deno.mkdir("encodes")
+} catch (_e) {
+    // ignore
+}
 
 for (let i = 0; i < segmentsToEncode.length; i++) {
     const segment = segmentsToEncode[i]
     const nextSegment = segmentsToEncode[i + 1]
     if (nextSegment)
         segmentLoader.getSegment(nextSegment[0], nextSegment[1])
-    await encodeSegments(await segmentLoader.getSegment(segment[0], segment[1]), segment[0], segment[1])
+    const segmentPath = await segmentLoader.getSegment(segment[0], segment[1])
+    await encodeSegments(segmentPath, segment[0], segment[1])
+    Deno.remove(segmentPath)
 }

@@ -514,7 +514,7 @@ export class Decoder<HeaderReady = false> extends Transform {
 	public _flush(callback: TransformCallback) {
 		if (!this.header || this.#frame) {
 			this.#cleanup();
-			callback(new Error('Not finished'));
+			callback(new Error('Header could not be parsed. Maybe check that the source file exists?'));
 			return;
 		}
 		this.#cleanup();

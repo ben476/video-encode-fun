@@ -1,6 +1,6 @@
 import { fileExists, crfs, range } from "./utils.ts"
 
-export async function encodeSegmentCrf(key: number, crf: number, segmentBuffer: Uint8Array) {
+export async function encodeSegmentCrf(key: number, crf: number, segmentPath: string) {
     if (await fileExists(`encodes/${key}/${crf}.webm`)) {
         console.log(`Skipping encoding ${key} with crf ${crf} because file already exists`)
         return
@@ -8,9 +8,9 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentBuffer: 
 
     const pSvt = Deno.run({
         cmd: [
-            "./SvtAv1EncApp",
+            "SvtAv1EncApp",
             "-i",
-            `-`,
+            segmentPath,
             "-b",
             `/dev/stdout`,
             "-w",
@@ -32,35 +32,6 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentBuffer: 
         stdin: "piped",
         stderr: "piped",
     })
-
-    // console.log("Piping segment to svt, size:", segmentBuffer.length)
-
-    let position = 0;
-
-    // const segmentStream = new ReadableStream({})
-
-    const segmentStream = new ReadableStream({
-        type: "bytes",
-        pull(controller) {
-            if (position < segmentBuffer.length) {
-                // console.log("Piping segment to svt, position:", position)
-                const chunk = segmentBuffer.slice(position, position + 100000000)
-                position += 100000000
-                controller.enqueue(chunk)
-            } else {
-                // console.log("Done piping segment to svt", position, segmentBuffer.length)
-                controller.close()
-            }
-        }
-    })
-
-    segmentStream.pipeTo(pSvt.stdin.writable)
-
-    // const ivfBuffer = await pSvt.output()
-
-    // const writer = pSvt.stdin.writable.getWriter()
-
-    // await writer.write(segmentBuffer)
 
     // ffmpeg -y -i - -c copy -an out.webm
     const pFfmpeg = Deno.run({
@@ -95,7 +66,7 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentBuffer: 
     console.log(`Encoding segment ${key} with crf ${crf} successful`)
 }
 
-export async function encodeSegments(segmentBuffer: Uint8Array, startFrame: number, endFrame: number, encodingCrfs: number[] = [...crfs]) {
+export async function encodeSegments(segmentPath: string, startFrame: number, endFrame: number, encodingCrfs: number[] = [...crfs]) {
     // console.log(`Extracting segment ${startFrame} to ${endFrame}`)
 
     console.log(`Encoding segment ${startFrame} to ${endFrame}`)
@@ -114,7 +85,7 @@ export async function encodeSegments(segmentBuffer: Uint8Array, startFrame: numb
                 break
             }
 
-            await encodeSegmentCrf(startFrame, crf, segmentBuffer)
+            await encodeSegmentCrf(startFrame, crf, segmentPath)
         }
     })
 

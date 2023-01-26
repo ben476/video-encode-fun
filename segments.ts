@@ -27,7 +27,7 @@ function getY4MStream(path: string) {
 
 export class SegmentLoader {
     frameNumber = 0
-    segments: Record<number, Promise<Uint8Array>> = {}
+    segments: Record<number, Promise<string>> = {}
     lockQueue: ((value: void | PromiseLike<void>) => void)[] = []
     iterator?: AsyncIterableIterator<Frame>
     header?: Header
@@ -47,9 +47,15 @@ export class SegmentLoader {
         this.header = header
         // streams[video] = stream
         this.iterator = stream[Symbol.asyncIterator]()
+
+        try {
+            await Deno.mkdir("segments/" + encodeURIComponent(this.path), { recursive: true })
+        } catch (_e) {
+            // ignore
+        }
     }
 
-    async getSegment(startFrame: number, endFrame: number): Promise<Uint8Array> {
+    async getSegment(startFrame: number, endFrame: number): Promise<string> {
         const segments = this.segments
 
         segments[startFrame] ||= this.loadSegment(startFrame, endFrame)
@@ -57,7 +63,7 @@ export class SegmentLoader {
         return await segments[startFrame]
     }
 
-    async loadSegment(startFrame: number, endFrame: number): Promise<Uint8Array> {
+    async loadSegment(startFrame: number, endFrame: number): Promise<string> {
         console.log(`Getting segment ${startFrame} to ${endFrame} for ${this.path}`)
 
         const { iterator, header } = this
@@ -123,29 +129,37 @@ export class SegmentLoader {
             bufferSize += header.colourSpace.frameSize
         }
 
-        const buffer = new Uint8Array(bufferSize)
+        // const buffer = new Uint8Array(bufferSize)
 
-        let offset = 0
+        // let offset = 0
+
+        const outPath = `segments/${encodeURIComponent(this.path)}/${startFrame}.y4m`
+
+        const outFile = await Deno.open(outPath, { create: true, write: true })
 
         const textEncoder = new TextEncoder()
 
-        function appendToBuffer(data: string | ArrayBuffer) {
+        async function appendToBuffer(data: string | Uint8Array) {
             if (typeof data === "string") {
                 data = textEncoder.encode(data)
             }
-            buffer.set(new Uint8Array(data), offset)
-            offset += data.byteLength
+            // buffer.set(new Uint8Array(data), offset)
+            // offset += data.byteLength
+            let nwritten = 0;
+            while (nwritten < data.byteLength) {
+                nwritten += await outFile.write(data.slice(nwritten));
+            }
         }
 
-        appendToBuffer("YUV4MPEG2 ")
-        appendToBuffer(header.toString())
-        appendToBuffer("\n")
+        await appendToBuffer("YUV4MPEG2 ")
+        await appendToBuffer(header.toString())
+        await appendToBuffer("\n")
 
         for (const frame of frames) {
-            appendToBuffer("FRAME")
-            appendToBuffer(frame.rawParameters || "")
-            appendToBuffer("\n")
-            appendToBuffer(frame.data)
+            await appendToBuffer("FRAME")
+            await appendToBuffer(frame.rawParameters || "")
+            await appendToBuffer("\n")
+            await appendToBuffer(frame.data)
         }
 
         // await Deno.writeFile(`segments/${startFrame}.y4m`, buffer)
@@ -154,13 +168,14 @@ export class SegmentLoader {
 
         releaseLock()
 
-        return buffer
+        return outPath
     }
 
-    removeSegment(startFrame: number) {
-        console.log(`Removing segment ${startFrame} for ${this.path}`)
-        delete this.segments[startFrame]
-    }
+    // removeSegment(startFrame: number) {
+    //     console.log(`Removing segment ${startFrame} for ${this.path}`)
+    //     // delete this.segments[startFrame]
+    //     Deno.remove(`segments/${encodeURIComponent(this.path)}/${startFrame}.y4m`)
+    // }
 }
 
 Comlink.expose(SegmentLoader)
