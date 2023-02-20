@@ -1,6 +1,6 @@
 import { fileExists, crfs, range } from "./utils.ts"
 
-export async function encodeSegmentCrf(key: number, crf: number, segmentPath: string, retries: number = 0) {
+export async function encodeSegmentCrf(key: number, crf: number, segmentPath: string, retries = 0): Promise<void> {
     if (await fileExists(`encodes/${key}/${crf}.webm`)) {
         console.log(`Skipping encoding ${key} with crf ${crf} because file already exists`)
         return
@@ -8,7 +8,7 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentPath: st
 
     const pSvt = Deno.run({
         cmd: [
-            "./SvtAv1EncApp",
+            "SvtAv1EncApp",
             "-i",
             segmentPath,
             "-b",

@@ -1,4 +1,8 @@
+*.DS_Store
 
 encode_test.ts
 encodes/*
 test_seg.ts
+
+*.y4m
+*.mp4
