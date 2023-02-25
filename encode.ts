@@ -19,8 +19,14 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentPath: st
             "1080",
             "--fps",
             "23.98",
+            "--color-primaries",
+            "bt709",
+            "--transfer-characteristics",
+            "bt709",
+            "--matrix-coefficients",
+            "bt709",
             "--lp",
-            retries ? "32" : "4",
+            retries ? "32" : "1",
             "--rc",
             "0",
             "--qp",
@@ -30,7 +36,7 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentPath: st
         ],
         stdout: "piped",
         stdin: "piped",
-        // stderr: "piped",
+        stderr: "piped",
     })
 
     // ffmpeg -y -i - -c copy -an out.webm
@@ -47,7 +53,7 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentPath: st
         ],
         stdin: "piped",
         stdout: "piped",
-        // stderr: "piped",
+        stderr: "piped",
     })
 
     pSvt.stdout.readable.pipeTo(pFfmpeg.stdin.writable)
@@ -75,27 +81,36 @@ export async function encodeSegments(segmentPath: string, startFrame: number, en
 
     console.log(`Encoding segment ${startFrame} to ${endFrame}`)
 
+    // try {
+    //     await Deno.mkdir("encodes")
+    // } catch (_e) {
+    //     // ignore
+    // }
+
     try {
         await Deno.mkdir("encodes/" + startFrame)
     } catch (_e) {
         // ignore
     }
 
-    const encodingPromises = range(0, 64).map(async () => {
-        while (encodingCrfs.length > 0) {
-            const crf = encodingCrfs.shift()
+    let remaining = encodingCrfs.length
 
-            if (!crf) {
-                break
-            }
+    const encodingAsyncs = encodingCrfs.map((crf) => async () => {
+        await encodeSegmentCrf(startFrame, crf, segmentPath)
 
-            await encodeSegmentCrf(startFrame, crf, segmentPath)
+        remaining--
+
+        if (remaining === 0) {
+            console.log(`Encoding segment ${startFrame} to ${endFrame} complete`)
+            Deno.remove(segmentPath)
         }
     })
 
-    await Promise.all(encodingPromises)
+    // await Promise.all(encodingPromises)
 
-    console.log(`Encoding segment ${startFrame} to ${endFrame} complete`)
+    // console.log(`Encoding segment ${startFrame} to ${endFrame} complete`)
 
     // removeSegment(video, startFrame)
+
+    return encodingAsyncs
 }
