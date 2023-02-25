@@ -2,7 +2,7 @@ import { fileExists, crfs } from "./utils.ts"
 
 const textDecoder = new TextDecoder()
 
-async function verifyCrf(startFrame: number, endFrame: number, crf: number) {
+export async function verify(startFrame: number, endFrame: number, crf: number) {
     if (!await fileExists(`encodes/${startFrame}/${crf}.webm`)) {
         // console.log(`Decoding ${startFrame} with crf ${crf} failed. File does not exist`)
         return crf
@@ -60,7 +60,7 @@ async function verifyCrf(startFrame: number, endFrame: number, crf: number) {
 }
 
 export async function verifyScene(startFrame: number, endFrame: number) {
-    const decodePromises = crfs.map((crf) => verifyCrf(startFrame, endFrame, crf))
+    const decodePromises = crfs.map((crf) => verify(startFrame, endFrame, crf))
 
     return (await Promise.all(decodePromises)).filter(a => a).map(Number)
 }

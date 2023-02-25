@@ -1,6 +1,6 @@
-import { fileExists, crfs, range } from "./utils.ts"
+import { fileExists } from "./utils.ts"
 
-export async function encodeSegmentCrf(key: number, crf: number, segmentPath: string, retries = 0): Promise<void> {
+export async function encode(key: number, segment: number[], crf: number, segmentPath: string, retries = 0): Promise<void> {
     if (await fileExists(`encodes/${key}/${crf}.webm`)) {
         console.log(`Skipping encoding ${key} with crf ${crf} because file already exists`)
         return
@@ -70,47 +70,10 @@ export async function encodeSegmentCrf(key: number, crf: number, segmentPath: st
             return
         }
 
-        return encodeSegmentCrf(key, crf, segmentPath, retries + 1)
+        Deno.remove(`encodes/${key}/${crf}.webm`)
+
+        return await encode(key, segment, crf, segmentPath, retries + 1)
     }
 
     console.log(`Encoding segment ${key} with crf ${crf} successful`)
-}
-
-export async function encodeSegments(segmentPath: string, startFrame: number, endFrame: number, encodingCrfs: number[] = [...crfs]) {
-    // console.log(`Extracting segment ${startFrame} to ${endFrame}`)
-
-    console.log(`Encoding segment ${startFrame} to ${endFrame}`)
-
-    // try {
-    //     await Deno.mkdir("encodes")
-    // } catch (_e) {
-    //     // ignore
-    // }
-
-    try {
-        await Deno.mkdir("encodes/" + startFrame)
-    } catch (_e) {
-        // ignore
-    }
-
-    let remaining = encodingCrfs.length
-
-    const encodingAsyncs = encodingCrfs.map((crf) => async () => {
-        await encodeSegmentCrf(startFrame, crf, segmentPath)
-
-        remaining--
-
-        if (remaining === 0) {
-            console.log(`Encoding segment ${startFrame} to ${endFrame} complete`)
-            Deno.remove(segmentPath)
-        }
-    })
-
-    // await Promise.all(encodingPromises)
-
-    // console.log(`Encoding segment ${startFrame} to ${endFrame} complete`)
-
-    // removeSegment(video, startFrame)
-
-    return encodingAsyncs
 }

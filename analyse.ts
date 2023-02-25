@@ -1,7 +1,7 @@
-import { fileExists, crfs, range } from "./utils.ts"
+import { fileExists } from "./utils.ts"
 
 // ffmpeg -i '/segments/0-107.y4m' -i 'encodes/0/1.webm' -lavfi libvmaf=log_fmt=json:log_path=analysis/0/1.json -f null /dev/null
-export async function analyseSegmentCrf(key: number, crf: number, segmentPath: string, retries = 0): Promise<void> {
+export async function analyse(key: number, segment: number[], crf: number, segmentPath: string, retries = 0): Promise<void> {
     if (await fileExists(`analyses/${key}/${crf}.webm`)) {
         console.log(`Skipping analysing ${key} with crf ${crf} because file already exists`)
         return
@@ -42,44 +42,8 @@ export async function analyseSegmentCrf(key: number, crf: number, segmentPath: s
             return
         }
 
-        return analyseSegmentCrf(key, crf, segmentPath, retries + 1)
+        return analyse(key, segment, crf, segmentPath, retries + 1)
     }
 
     console.log(`analysing segment ${key} with crf ${crf} successful`)
-}
-
-export async function analyseSegments(segmentPath: string, startFrame: number, endFrame: number, analysingCrfs: number[] = [...crfs]) {
-    // console.log(`Extracting segment ${startFrame} to ${endFrame}`)
-
-    console.log(`analysing segment ${startFrame} to ${endFrame}`)
-
-    try {
-        await Deno.mkdir("analyses")
-    } catch (_e) {
-        // ignore
-    }
-
-    try {
-        await Deno.mkdir("analyses/" + startFrame)
-    } catch (_e) {
-        // ignore
-    }
-
-    const analysingPromises = range(0, 64).map(async () => {
-        while (analysingCrfs.length > 0) {
-            const crf = analysingCrfs.shift()
-
-            if (!crf) {
-                break
-            }
-
-            await analyseSegmentCrf(startFrame, crf, segmentPath)
-        }
-    })
-
-    await Promise.all(analysingPromises)
-
-    console.log(`analysing segment ${startFrame} to ${endFrame} complete`)
-
-    // removeSegment(video, startFrame)
 }

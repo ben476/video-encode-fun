@@ -1,9 +1,12 @@
 import { crfs, fileExistsSync, range } from "./utils.ts"
-import { verifyScene } from "./video.ts"
+import { verifyScene, verify } from "./verify.ts"
 import scene_pos from "./scenes.json" assert { type: "json" }
-import { encodeSegments } from "./encode.ts"
-import { analyseSegments } from "./analyse.ts"
+import { encode } from "./encode.ts"
+import { analyse } from "./analyse.ts"
 import { SegmentLoader } from "./segments.ts"
+import { getSegmentTasks, runSegmentTasks, Task } from "./task.ts"
+
+const numRunners = Number(Deno.args[1] || 8)
 
 const scenes: number[][] = []
 
@@ -11,39 +14,51 @@ for (let i = 0; i < scene_pos.length - 1; i++) {
     scenes.push([scene_pos[i], scene_pos[i + 1]])
 }
 
+// console.log("Scene frame cuts:", scenes)
 
-console.log("Scene frame cuts:", scenes)
+const started = scenes.filter(scene => {
+    try {
+        Deno.statSync(`encodes/${scene[0]}`)
+        return true
+    } catch (_e) {
+        return false
+    }
+})
 
+const completed = started.filter(scene => [...Deno.readDirSync(`encodes/${scene[0]}`)].length === crfs.length)
 
-const completed = scenes.filter(scene => fileExistsSync(`encodes/${scene[0]}`))
+const semiCompleted = started.filter(scene => !completed.includes(scene))
 
-console.log("Completed scenes:", completed)
+console.log("Scenes started:", started)
+console.log("Scenes completed:", completed)
+console.log("Scenes semi-completed:", semiCompleted)
 
-const lastCompleted = completed[completed.length - 1]
+const toVerify = [completed[completed.length - 1], ...semiCompleted].filter(a => a).reverse()
 
-if (lastCompleted) {
-    console.log("Last completed scene:", lastCompleted)
+console.log("Scenes to verify:", toVerify)
 
-    console.log("Verifying last completed scene")
+const sceneVerifications: Record<number, number[]> = {}
 
-    // scenes.splice(scenes.indexOf(lastCompleted), 1)
+await runSegmentTasks(null, toVerify, async (key, segment, crf, _segmentPath, _retries) => {
+    const result = await verify(segment[0], segment[1], crf)
+    if (result) {
+        sceneVerifications[key] ||= []
+        sceneVerifications[key].push(crf)
+    }
+}, 8)
 
-    const failed = await verifyScene(lastCompleted[0], lastCompleted[1])
+console.log("Scene verifications:", sceneVerifications)
 
-    console.log("Failed scenes:", failed)
+const encodeQueue = scenes.filter(scene => !completed.includes(scene)).reverse()
 
-    if (failed.length !== 0)
-        completed.splice(completed.indexOf(lastCompleted), 1)
-}
+for (const scene of toVerify)
+    if (sceneVerifications[scene[0]]?.length)
+        encodeQueue.push(scene)
 
-console.log("Completed scenes:", completed)
+console.log("Encode queue:", [...encodeQueue].reverse())
 
 const segmentsToEncode = scenes.filter(scene => !completed.includes(scene))
-// const segmentsToEncode = completed
-
 const segmentLoader = new SegmentLoader('/Users/benja/Downloads/vid_comp/video.mp4') // OK to cast since all methods are already async
-
-// segmentLoader.getSegment(segmentsToEncode[0][0], segmentsToEncode[0][1])
 
 try {
     await Deno.mkdir("encodes")
@@ -51,52 +66,19 @@ try {
     // ignore
 }
 
-const encodeQueue = [...segmentsToEncode].reverse()
-
-const numRunners = 7
+const task: Task = {
+    "encode": encode,
+    "analyse": analyse,
+    "decode": async (_key: number, segment: number[], crf: number, _segmentPath: string, _retries?: number) => { await verify(segment[0], segment[1], crf) }
+}[Deno.args[0]] || encode
 
 console.log("Segments to encode:", segmentsToEncode)
 
-const taskStream = new ReadableStream({
-    async pull(controller) {
-        const segment = encodeQueue.pop()
-        if (segment) {
-            const segmentPath = await segmentLoader.getSegment(segment[0], segment[1])
-            // await encodeSegments(segmentPath, segment[0], segment[1])
-            const tasks = await encodeSegments(segmentPath, segment[0], segment[1])
+await runSegmentTasks(segmentLoader, encodeQueue, task, numRunners)
 
-            tasks.forEach(task => controller.enqueue(task))
-        } else {
-            console.log("Done")
-            controller.close()
-        }
-    }
-}, {
-    highWaterMark: numRunners
-}).getReader();
+console.log("Finished all tasks")
 
-const taskRunners = range(0, numRunners).map(async () => {
-    await new Promise(resolve => setTimeout(resolve, Math.random() * 10000))
+segmentLoader.cleanup()
 
-    while (true) {
-        // console.log("Reading task")
-        const task = await taskStream.read()
-        // console.log("Read task", task)
-        if (task.done) break
-        await task.value()
-    }
-})
+Deno.exit(0)
 
-console.log("Running", taskRunners.length, "tasks")
-await Promise.all(taskRunners)
-
-// for (let i = 0; i < segmentsToEncode.length; i++) {
-//     const segment = segmentsToEncode[i]
-//     const nextSegment = segmentsToEncode[i + 1]
-//     if (nextSegment)
-//         segmentLoader.getSegment(nextSegment[0], nextSegment[1])
-//     const segmentPath = await segmentLoader.getSegment(segment[0], segment[1])
-//     // await encodeSegments(segmentPath, segment[0], segment[1])
-//     await analyseSegments(segmentPath, segment[0], segment[1])
-//     // Deno.remove(segmentPath)
-// }

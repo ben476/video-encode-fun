@@ -2,6 +2,7 @@ export class SegmentLoader {
     segments: Record<number, Promise<string>> = {}
     segmenterPromises: Record<number, (value: string) => void> = {}
     textEncoder = new TextEncoder()
+    process: Deno.Process
     stdin: Deno.Writer
     path: string
     outFolder: string
@@ -21,6 +22,8 @@ export class SegmentLoader {
             stdout: "piped",
             // stderr: "piped",
         })
+
+        this.process = p
 
         this.stdin = p.stdin;
 
@@ -77,4 +80,12 @@ export class SegmentLoader {
     //     // delete this.segments[startFrame]
     //     Deno.remove(`segments / ${ encodeURIComponent(this.path) } /${startFrame}.y4m`)
     // }
+
+    cleanup() {
+        this.process.kill()
+        this.process.close()
+        this.process.stdout?.close()
+
+        Deno.remove(this.outFolder, { recursive: true })
+    }
 }
