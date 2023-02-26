@@ -1,3 +1,4 @@
+import { createTaskRunners, getTaskStream } from "./task.ts"
 import { fileExists, crfs } from "./utils.ts"
 
 const textDecoder = new TextDecoder()
@@ -63,4 +64,28 @@ export async function verifyScene(startFrame: number, endFrame: number) {
     const decodePromises = crfs.map((crf) => verify(startFrame, endFrame, crf))
 
     return (await Promise.all(decodePromises)).filter(a => a).map(Number)
+}
+
+export async function verifyScenes(toVerify: number[][]) {
+    console.log("Scenes to verify:", toVerify);
+
+    const sceneVerifications: Record<number, number[]> = {};
+
+    const verificationTaskStream = getTaskStream(null, toVerify, async (key, segment, crf, _segmentPath, _retries) => {
+        const result = await verify(segment[0], segment[1], crf);
+        if (result) {
+            sceneVerifications[key] ||= [];
+            sceneVerifications[key].push(crf);
+        }
+    }, 8);
+
+    const verificationTaskRunners = createTaskRunners(verificationTaskStream, 8);
+
+    console.log("Running", verificationTaskRunners.length, " verification tasks");
+
+    await Promise.all(verificationTaskRunners);
+
+    console.log("Scene verifications:", sceneVerifications);
+
+    return toVerify.filter(a => sceneVerifications[a[0]]?.length)
 }

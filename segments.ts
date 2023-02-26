@@ -56,11 +56,7 @@ export class SegmentLoader {
     async loadSegment(startFrame: number, endFrame: number): Promise<string> {
         console.log(`Getting segment ${startFrame} to ${endFrame} for ${this.path}`)
 
-        try {
-            Deno.mkdir(this.outFolder, { recursive: true })
-        } catch (_e) {
-            // ignore
-        }
+        await Deno.mkdir(this.outFolder, { recursive: true }).catch(() => { })
 
         await this.stdin.write(this.textEncoder.encode(`${startFrame} ${endFrame}\n`))
 
