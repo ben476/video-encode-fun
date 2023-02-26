@@ -5,7 +5,7 @@ const textDecoder = new TextDecoder()
 
 export async function verify(startFrame: number, endFrame: number, crf: number) {
     if (!await fileExists(`encodes/${startFrame}/${crf}.webm`)) {
-        // console.log(`Decoding ${startFrame} with crf ${crf} failed. File does not exist`)
+        console.log(`Decoding ${startFrame} with crf ${crf} failed. File does not exist`)
         return crf
     }
 
@@ -71,7 +71,9 @@ export async function verifyScenes(toVerify: number[][]) {
 
     const sceneVerifications: Record<number, number[]> = {};
 
-    const verificationTaskStream = getTaskStream(null, toVerify, async (key, segment, crf, _segmentPath, _retries) => {
+    const segments = [...toVerify].reverse()
+
+    const verificationTaskStream = getTaskStream(null, () => segments.pop(), async (key, segment, crf, _segmentPath, _retries) => {
         const result = await verify(segment[0], segment[1], crf);
         if (result) {
             sceneVerifications[key] ||= [];
@@ -81,7 +83,7 @@ export async function verifyScenes(toVerify: number[][]) {
 
     const verificationTaskRunners = createTaskRunners(verificationTaskStream, 8);
 
-    console.log("Running", verificationTaskRunners.length, " verification tasks");
+    console.log("Running", verificationTaskRunners.length, "verification tasks");
 
     await Promise.all(verificationTaskRunners);
 
