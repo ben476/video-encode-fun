@@ -7,10 +7,10 @@ export class SegmentLoader {
     path: string
     outFolder: string
 
-    constructor(path: string) {
+    constructor(path: string, cacheDir = "segments") {
         this.path = path
 
-        this.outFolder = "segments/" + encodeURIComponent(path)
+        this.outFolder = cacheDir + "/" + encodeURIComponent(path)
 
         const p = Deno.run({
             cmd: [

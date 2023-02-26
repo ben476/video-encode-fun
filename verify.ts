@@ -3,8 +3,8 @@ import { fileExists, crfs } from "./utils.ts"
 
 const textDecoder = new TextDecoder()
 
-export async function verify(startFrame: number, endFrame: number, crf: number) {
-    if (!await fileExists(`encodes/${startFrame}/${crf}.webm`)) {
+export async function verify(startFrame: number, endFrame: number, crf: number, outPath: string) {
+    if (!await fileExists(`${outPath}/${startFrame}/${crf}.webm`)) {
         console.log(`Decoding ${startFrame} with crf ${crf} failed. File does not exist`)
         return crf
     }
@@ -23,7 +23,7 @@ export async function verify(startFrame: number, endFrame: number, crf: number) 
             "stream=nb_read_frames",
             "-of",
             "csv=p=0",
-            `encodes/${startFrame}/${crf}.webm`,
+            `${outPath}/${startFrame}/${crf}.webm`,
         ],
         stdout: "piped",
         stderr: "piped",
@@ -33,7 +33,7 @@ export async function verify(startFrame: number, endFrame: number, crf: number) 
 
     if (code !== 0) {
         console.log(`Decoding ${startFrame} with crf ${crf} failed. Deleting file and trying again`)
-        await Deno.remove(`encodes/${startFrame}/${crf}.webm`)
+        await Deno.remove(`${outPath}/${startFrame}/${crf}.webm`)
         return crf
     }
 
@@ -49,7 +49,7 @@ export async function verify(startFrame: number, endFrame: number, crf: number) 
 
     const nFrames = Number(output)
 
-    if (nFrames !== endFrame - startFrame) {
+    if (endFrame !== 2147483647 && nFrames !== endFrame - startFrame) {
         console.log(`Decoding ${startFrame} with crf ${crf} succeeded, but had ${nFrames} frames instead of ${endFrame - startFrame}. Deleting file and trying again`)
         await Deno.remove(`encodes/${startFrame}/${crf}.webm`)
         return crf
@@ -60,26 +60,26 @@ export async function verify(startFrame: number, endFrame: number, crf: number) 
     p.close()
 }
 
-export async function verifyScene(startFrame: number, endFrame: number) {
-    const decodePromises = crfs.map((crf) => verify(startFrame, endFrame, crf))
+export async function verifyScene(startFrame: number, endFrame: number, outPath: string) {
+    const decodePromises = crfs.map((crf) => verify(startFrame, endFrame, crf, outPath))
 
     return (await Promise.all(decodePromises)).filter(a => a).map(Number)
 }
 
-export async function verifyScenes(toVerify: number[][]) {
+export async function verifyScenes(toVerify: number[][], outPath: string) {
     console.log("Scenes to verify:", toVerify);
 
     const sceneVerifications: Record<number, number[]> = {};
 
     const segments = [...toVerify].reverse()
 
-    const verificationTaskStream = getTaskStream(null, () => segments.pop(), async (key, segment, crf, _segmentPath, _retries) => {
-        const result = await verify(segment[0], segment[1], crf);
+    const verificationTaskStream = getTaskStream(null, () => segments.pop(), async (key, segment, crf, _segmentPath, outPath, _retries) => {
+        const result = await verify(segment[0], segment[1], crf, outPath);
         if (result) {
             sceneVerifications[key] ||= [];
             sceneVerifications[key].push(crf);
         }
-    }, 8);
+    }, 8, outPath);
 
     const verificationTaskRunners = createTaskRunners(verificationTaskStream, 8);
 

@@ -1,9 +1,9 @@
 import { SegmentLoader } from "./segments.ts"
 import { crfs, range } from "./utils.ts"
 
-export type Task = (key: number, segment: number[], crf: number, segmentPath: string, retries?: number) => Promise<void>
+export type Task = (key: number, segment: number[], crf: number, segmentPath: string, outPath: string, retries?: number) => Promise<void>
 
-export async function getSegmentTasks(segmentPath: string, key: number, segment: number[], task: (key: number, segment: number[], crf: number, segmentPath: string, retries?: number) => Promise<void>, taskCrfs: number[] = [...crfs]) {
+export async function getSegmentTasks(segmentPath: string, key: number, segment: number[], task: Task, outPath: string, taskCrfs: number[] = [...crfs]) {
     console.log(`Running task for ${key}`)
 
     await Deno.mkdir("encodes/" + key).catch(() => { })
@@ -11,7 +11,7 @@ export async function getSegmentTasks(segmentPath: string, key: number, segment:
     let remaining = taskCrfs.length
 
     return taskCrfs.map((crf) => async () => {
-        await task(key, segment, crf, segmentPath)
+        await task(key, segment, crf, segmentPath, outPath)
 
         remaining--
 
@@ -22,13 +22,13 @@ export async function getSegmentTasks(segmentPath: string, key: number, segment:
     })
 }
 
-export function getTaskStream(segmentLoader: SegmentLoader | null, segmentGetter: () => (number[] | undefined), task: Task, numRunners: number, taskCrfs: number[] = [...crfs]) {
+export function getTaskStream(segmentLoader: SegmentLoader | null, segmentGetter: () => (number[] | undefined), task: Task, numRunners: number, outPath: string, taskCrfs: number[] = [...crfs]) {
     return new ReadableStream({
         async pull(controller) {
             const segment = segmentGetter();
             if (segment) {
                 const segmentPath = segmentLoader ? await segmentLoader.getSegment(segment[0], segment[1]) : "";
-                const tasks = await getSegmentTasks(segmentPath, segment[0], segment, task, taskCrfs);
+                const tasks = await getSegmentTasks(segmentPath, segment[0], segment, task, outPath, taskCrfs);
 
                 tasks.forEach(task => controller.enqueue(task));
             } else {

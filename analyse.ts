@@ -1,7 +1,7 @@
 import { fileExists } from "./utils.ts"
 
 // ffmpeg -i '/segments/0-107.y4m' -i 'encodes/0/1.webm' -lavfi libvmaf=log_fmt=json:log_path=analysis/0/1.json -f null /dev/null
-export async function analyse(key: number, segment: number[], crf: number, segmentPath: string, retries = 0): Promise<void> {
+export async function analyse(key: number, segment: number[], crf: number, segmentPath: string, outPath: string, retries = 0): Promise<void> {
     if (await fileExists(`analyses/${key}/${crf}.webm`)) {
         console.log(`Skipping analysing ${key} with crf ${crf} because file already exists`)
         return
@@ -18,7 +18,7 @@ export async function analyse(key: number, segment: number[], crf: number, segme
             "-r",
             "23.98",
             "-i",
-            `encodes/${key}/${crf}.webm`,
+            `${outPath}/${key}/${crf}.webm`,
             "-lavfi",
             `libvmaf=log_fmt=json:log_path=analyses/${key}/${crf}.json:n_threads=8`,
             "-f",
@@ -42,7 +42,7 @@ export async function analyse(key: number, segment: number[], crf: number, segme
             return
         }
 
-        return analyse(key, segment, crf, segmentPath, retries + 1)
+        return analyse(key, segment, crf, segmentPath, outPath, retries + 1)
     }
 
     console.log(`analysing segment ${key} with crf ${crf} successful`)

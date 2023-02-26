@@ -1,7 +1,7 @@
 import { fileExists } from "./utils.ts"
 
-export async function encode(key: number, segment: number[], crf: number, segmentPath: string, retries = 0): Promise<void> {
-    if (await fileExists(`encodes/${key}/${crf}.webm`)) {
+export async function encode(key: number, segment: number[], crf: number, segmentPath: string, outPath: string, retries = 0): Promise<void> {
+    if (await fileExists(`${outPath}/${key}/${crf}.webm`)) {
         console.log(`Skipping encoding ${key} with crf ${crf} because file already exists`)
         return
     }
@@ -49,7 +49,7 @@ export async function encode(key: number, segment: number[], crf: number, segmen
             "-c",
             "copy",
             "-an",
-            `encodes/${key}/${crf}.webm`
+            `${outPath}/${key}/${crf}.webm`
         ],
         stdin: "piped",
         stdout: "piped",
@@ -70,9 +70,9 @@ export async function encode(key: number, segment: number[], crf: number, segmen
             return
         }
 
-        Deno.remove(`encodes/${key}/${crf}.webm`)
+        Deno.remove(`${outPath}/${key}/${crf}.webm`)
 
-        return await encode(key, segment, crf, segmentPath, retries + 1)
+        return await encode(key, segment, crf, segmentPath, outPath, retries + 1)
     }
 
     console.log(`Encoding segment ${key} with crf ${crf} successful`)
