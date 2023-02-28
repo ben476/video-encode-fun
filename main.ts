@@ -36,7 +36,8 @@ console.log("Flags:", flags)
 
 const scenes = scene_pos.map((a: number, i: number) => [a, scene_pos[i + 1] || 2147483647])
 const started = (await Promise.all(scenes.map(async scene => await Deno.stat(`${flags.outPath}/${scene[0]}`).catch(() => { }) && scene))).filter(a => a) as number[][]
-const completed = started.filter(scene => [...Deno.readDirSync(`${flags.outPath}/${scene[0]}`)].length === crfs.length)
+const encodeReg = /^\d+.webm$/
+const completed = started.filter(scene => [...Deno.readDirSync(`${flags.outPath}/${scene[0]}`)].filter(file => encodeReg.test(file.name)).length === crfs.length)
 const semiCompleted = started.filter(scene => !completed.includes(scene))
 
 console.log("Scenes completed:", completed)
@@ -44,6 +45,7 @@ console.log("Scenes semi-completed:", semiCompleted)
 
 const toVerify = [completed[completed.length - 1], ...semiCompleted].filter(a => a)
 const toEncode = [...await verifyScenes(toVerify, flags.outPath), ...scenes.filter(scene => !completed.includes(scene))]
+// const toEncode = []
 
 console.log("Encode queue:", toEncode)
 
