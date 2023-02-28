@@ -7,6 +7,8 @@ export async function analyse(key: number, segment: number[], crf: number, segme
         return
     }
 
+    await Deno.mkdir("analyses/" + key, { recursive: true }).catch(() => { })
+
     const pFfmpeg = Deno.run({
         cmd: [
             "ffmpeg",

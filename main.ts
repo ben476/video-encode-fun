@@ -7,11 +7,13 @@ import { SegmentLoader } from "./segments.ts"
 import { getTaskStream, Task, createTaskRunners } from "./task.ts"
 import { parse } from "https://deno.land/std@0.178.0/flags/mod.ts";
 
-const task: Task = {
+const tasks: Record<string, Task> = {
     "encode": encode,
     "analyse": analyse,
     "verify": async (_key: number, segment: number[], crf: number, _segmentPath: string, _outPath: string, _retries?: number) => { await verify(segment[0], segment[1], crf, flags.outPath) }
-}[Deno.args[0]] || encode
+}
+
+const task: Task = tasks[Deno.args[0]] || encode
 
 const videoPath = Deno.args[1] || '/Users/benja/Downloads/vid_comp/video.mp4'
 
@@ -67,7 +69,7 @@ if (flags.server) {
         }
     }
 } else {
-    const segmentLoader = task === encode ? new SegmentLoader(videoPath, flags.cacheDir) : null
+    const segmentLoader = task === tasks.verify ? null : new SegmentLoader(videoPath, flags.cacheDir)
     const taskStream = getTaskStream(segmentLoader, () => encodeQueue.pop(), task, numRunners, flags.outPath)
     const taskRunners = createTaskRunners(taskStream, numRunners)
 
