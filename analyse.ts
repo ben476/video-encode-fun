@@ -2,7 +2,7 @@ import { fileExists } from "./utils.ts"
 
 // ffmpeg -i '/segments/0-107.y4m' -i 'encodes/0/1.webm' -lavfi libvmaf=log_fmt=json:log_path=analysis/0/1.json -f null /dev/null
 export async function analyse(key: number, segment: number[], crf: number, segmentPath: string, outPath: string, retries = 0): Promise<void> {
-    if (await fileExists(`analyses/${key}/${crf}.webm`)) {
+    if (await fileExists(`analyses/${key}/${crf}.json`)) {
         console.log(`Skipping analysing ${key} with crf ${crf} because file already exists`)
         return
     }
@@ -11,7 +11,7 @@ export async function analyse(key: number, segment: number[], crf: number, segme
 
     const pFfmpeg = Deno.run({
         cmd: [
-            "ffmpeg",
+            "./run_algorithm",
             "-y",
             "-r",
             "23.98",
@@ -22,20 +22,20 @@ export async function analyse(key: number, segment: number[], crf: number, segme
             "-i",
             `${outPath}/${key}/${crf}.webm`,
             "-lavfi",
-            `libvmaf=log_fmt=json:log_path=analyses/${key}/${crf}.json:n_threads=8`,
+            `libvmaf=log_fmt=json:log_path=analyses/${key}/${crf}.json:n_threads=8:model='path=vmaf_v0.6.1.json'`,
             "-f",
             "null",
             "/dev/null"
         ],
         stdin: "piped",
         stdout: "piped",
-        // stderr: "piped",
+        stderr: "piped",
     })
 
     const { code } = await pFfmpeg.status()
 
     if (code !== 0) {
-        console.log(`analysing segment ${key} with crf ${crf} failed`)
+        console.log(`analysing segment ${key} with crf ${crf} failed`, segmentPath, `${outPath}/${key}/${crf}.webm`)
 
         // console.log(new TextDecoder().decode(await pSvt.stderrOutput()))
         // console.log(new TextDecoder().decode(await pFfmpeg.stderrOutput()))

@@ -32,6 +32,8 @@ const flags = parse(Deno.args, {
     }
 })
 
+//  docker run -v /local/scratch/hongbenj/encodes:/app/encodes -v /local/scratch/hongbenj:/local -v analyses:/app/analyses encode analyse /local/video.mp4 --cacheDir /local/cache
+
 const numRunners = Number(flags.runners)
 
 console.log("Flags:", flags)
@@ -41,6 +43,10 @@ const started = (await Promise.all(scenes.map(async scene => await Deno.stat(`${
 const encodeReg = /^\d+.webm$/
 const completed = started.filter(scene => [...Deno.readDirSync(`${flags.outPath}/${scene[0]}`)].filter(file => encodeReg.test(file.name)).length === crfs.length)
 const semiCompleted = started.filter(scene => !completed.includes(scene))
+
+const startedAnalyse = (await Promise.all(scenes.map(async scene => await Deno.stat(`analyses/${scene[0]}`).catch(() => { }) && scene))).filter(a => a) as number[][]
+const analyseReg = /^\d+.json$/
+const completedAnalyse = startedAnalyse.filter(scene => [...Deno.readDirSync(`analyses/${scene[0]}`)].filter(file => analyseReg.test(file.name)).length === crfs.length)
 
 console.log("Scenes completed:", completed)
 console.log("Scenes semi-completed:", semiCompleted)
@@ -53,7 +59,25 @@ console.log("Encode queue:", toEncode)
 
 await Deno.mkdir("encodes").catch(() => { })
 
-const encodeQueue = [...task === encode ? toEncode : scenes.filter(scene => !toEncode.includes(scene))].reverse()
+// const encodeQueue = {
+//     [tasks.encode]: toEncode,
+//     [tasks.analyse]: [...scenes.filter(scene => !toEncode.includes(scene) && !completedAnalyse.includes(scene))].reverse(),
+//     [tasks.verify]: toEncode
+// }[task]
+
+const encodeQueue = (() => {
+    switch (task) {
+        case tasks.encode:
+            return toEncode
+        case tasks.analyse:
+            return [...scenes.filter(scene => !toEncode.includes(scene) && !completedAnalyse.includes(scene))].reverse()
+        case tasks.verify:
+            return [...scenes.filter(scene => !toEncode.includes(scene))].reverse()
+        default:
+            return toEncode
+    }
+})()
+
 
 if (flags.server) {
     const server = Deno.listen({ port: 8080 })
