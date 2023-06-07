@@ -11,7 +11,7 @@ export async function analyse(key: number, segment: number[], crf: number, segme
 
     const pFfmpeg = Deno.run({
         cmd: [
-            "./run_algorithm",
+            "ffmpeg",
             "-y",
             "-r",
             "23.98",
@@ -22,7 +22,7 @@ export async function analyse(key: number, segment: number[], crf: number, segme
             "-i",
             `${outPath}/${key}/${crf}.webm`,
             "-lavfi",
-            `libvmaf=log_fmt=json:log_path=analyses/${key}/${crf}.json:n_threads=8:model='path=vmaf_v0.6.1.json'`,
+            `libvmaf=log_fmt=json:log_path=analyses/${key}/${crf}.json:n_threads=1`,
             "-f",
             "null",
             "/dev/null"

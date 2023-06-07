@@ -2,7 +2,13 @@ ffmpeg -i tawa.mkv -strict -1 -pix_fmt yuv420p10le -f yuv4mpegpipe - |
   ./SvtAv1EncApp -i stdin -b stdout -w 3840 -h 2160 --fps 24 --rc 0 --enable-tpl-la 0 --qp 25 --keyint 240 --irefresh-type 1 --preset 4 --profile 3 --input-depth 10 | ffmpeg -y -i - -c copy -an tawa.webm
 SvtAv1EncApp -i snip.yuv -b stdout -w 1920 -h 1080 --fps 24 --rc 0 --qp 25 --preset 10 | ffmpeg -y -i - -c copy -an snip_svt_faster.webm
 
-// working nvm overblown on actual hdr screen
+ffmpeg -i snip.mp4 -strict -1 -pix_fmt yuv420p -f yuv4mpegpipe - |
+  SvtAv1EncApp -i stdin -b stdout -w 1920 -h 1080 --fps 24 --rc 0 --qp 25 --preset 8 --input-depth 10 | ffmpeg -y -i - -c copy -an tawa.webm
+SvtAv1EncApp -i snip.yuv -b stdout -w 1920 -h 1080 --fps 24 --rc 0 --qp 25 --preset 10 | ffmpeg -y -i - -c copy -an snip_svt_faster.webm
+
+ffmpeg -i snip.mp4 -strict -1 -pix_fmt yuv420p -f yuv4mpegpipe - | ffmpeg -y -i - -an snip_yuv.mp4
+
+// working. nvm overblown on actual hdr screen
 ./ffmpeg -i short_sollevante.mov -pix_fmt yuv444p12le -c:v libsvtav1 -preset 6 -tile_columns 0 -tile_rows 0 -tier high -color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc -qp 28 -rc 0 -an short_sollevante_28_av1
 
 ./ffmpeg -i short_yourname.mkv -pix_fmt yuv420p10le -c:v libsvtav1 -preset 6 -tile_columns 0 -tile_rows 0 -tier high -color_primaries bt2020 -color_trc arib-std-b67 -colorspace bt2020nc -qp 20 -rc 0 -an short_yourname_20_av1_hdr.webm

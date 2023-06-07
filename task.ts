@@ -6,7 +6,7 @@ export type Task = (key: number, segment: number[], crf: number, segmentPath: st
 export async function getSegmentTasks(segmentPath: string, key: number, segment: number[], task: Task, outPath: string, taskCrfs: number[] = [...crfs]) {
     console.log(`Running task for ${key}`)
 
-    await Deno.mkdir("encodes/" + key).catch(() => { })
+    await Deno.mkdir("encodes/" + key, { recursive: true }).catch(() => { })
 
     let remaining = taskCrfs.length
 

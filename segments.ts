@@ -1,3 +1,11 @@
+interface VideoInfo {
+    width: number
+    height: number
+    frames: number
+    fpsDen: number
+    fpsNum: number
+}
+
 export class SegmentLoader {
     segments: Record<number, Promise<string>> = {}
     segmenterPromises: Record<number, (value: string) => void> = {}
@@ -6,6 +14,7 @@ export class SegmentLoader {
     stdin: Deno.Writer
     path: string
     outFolder: string
+    videoInfo: Promise<VideoInfo>
 
     constructor(path: string, cacheDir = "segments") {
         this.path = path
@@ -27,20 +36,38 @@ export class SegmentLoader {
 
         this.stdin = p.stdin;
 
+        const buf = new Uint8Array(1024)
+
+        this.videoInfo = p.stdout.read(buf).then((result) => {
+            if (result === null) {
+                throw new Error("Could not read video info")
+            }
+
+            const decoder = new TextDecoder()
+
+            const [width, height, frames, fpsDen, fpsNum] = decoder.decode(buf).split(" ").map((s) => parseInt(s))
+
+            return { width, height, frames, fpsDen, fpsNum }
+        });
+
         (async () => {
             const decoder = new TextDecoder()
 
-            for await (const chunk of p.stdout.readable) {
-                const [key, path] = decoder.decode(chunk).replace("\n", "").split(" ")
+            try {
+                for await (const chunk of p.stdout.readable) {
+                    const [key, path] = decoder.decode(chunk).replace("\n", "").split(" ")
 
-                const segmenterPromise = this.segmenterPromises[parseInt(key)]
+                    const segmenterPromise = this.segmenterPromises[parseInt(key)]
 
-                if (segmenterPromise) {
-                    segmenterPromise(path)
-                } else {
-                    console.log("No segmenter promise found for", key)
-                    throw new Error("No segmenter promise found for " + key)
+                    if (segmenterPromise) {
+                        segmenterPromise(path)
+                    } else {
+                        console.log("No segmenter promise found for", key)
+                        throw new Error("No segmenter promise found for " + key)
+                    }
                 }
+            } catch (e) {
+                console.log("Error reading from segmenter:", e)
             }
         })()
     }
@@ -82,6 +109,6 @@ export class SegmentLoader {
         this.process.close()
         this.process.stdout?.close()
 
-        Deno.remove(this.outFolder, { recursive: true })
+        Deno.remove(this.outFolder, { recursive: true }).catch(() => { })
     }
 }

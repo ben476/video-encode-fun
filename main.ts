@@ -38,7 +38,12 @@ const numRunners = Number(flags.runners)
 
 console.log("Flags:", flags)
 
-const scenes = scene_pos.map((a: number, i: number) => [a, scene_pos[i + 1] || 2147483647])
+const segmentLoader = new SegmentLoader(videoPath, flags.cacheDir)
+const videoInfo = await segmentLoader.videoInfo
+
+console.log("Video info:", videoInfo)
+
+const scenes = scene_pos.map((a: number, i: number) => [a, scene_pos[i + 1] || videoInfo.frames])
 const started = (await Promise.all(scenes.map(async scene => await Deno.stat(`${flags.outPath}/${scene[0]}`).catch(() => { }) && scene))).filter(a => a) as number[][]
 const encodeReg = /^\d+.webm$/
 const completed = started.filter(scene => [...Deno.readDirSync(`${flags.outPath}/${scene[0]}`)].filter(file => encodeReg.test(file.name)).length === crfs.length)
@@ -93,8 +98,7 @@ if (flags.server) {
         }
     }
 } else {
-    const segmentLoader = task === tasks.verify ? null : new SegmentLoader(videoPath, flags.cacheDir)
-    const taskStream = getTaskStream(segmentLoader, () => encodeQueue.pop(), task, numRunners, flags.outPath)
+    const taskStream = getTaskStream(task === tasks.verify ? null : segmentLoader, () => encodeQueue.pop(), task, numRunners, flags.outPath)
     const taskRunners = createTaskRunners(taskStream, numRunners)
 
     console.log("Running", taskRunners.length, "tasks")
